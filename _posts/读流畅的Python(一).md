@@ -1,0 +1,117 @@
+---
+title: 读流畅的Python(一).md
+key: 20191011
+tag: 雕虫文卷
+---
+# （一） Python数据类型
+## 1. 序列（sequence）
+### 1.1 python中list实现
+由cpython实现，由于经过长期优化，性能极强，优化的点比如：
+1. len(list)操作cpython会直接返回ob_size这个属性，根本不需要经过计算。
+2. list的append的效率还可以，原因是python的list类似于java的变长数组ArrayList，scala的ArrayBuffer，c++的vector。也就是说实现分配的内存长度大于已使用的长度，因此append的时候不会重新分配内存，是一个高效操作。因此和scala的ArrayBuffer一样，insert就不是高效操作了，因为所有在insert之后的元素都需要平移。
+### 1.2 序列对象特性
+### 1.3 构造序列
+#### 1.3.1 列表推导python
+python可以使用列表推导的形式构造对象，比如这样操作：
+```
+[i for i in range(10) if i % 2]
+
+[i if i%2 else 0 for i in range(10) ]
+```
+#### 1.3.2 构造序列c++
+```
+#include<iostream>
+#include <vector>
+using namespace std;
+int main()
+{
+    vector<int> obj;
+    for(int i = 0; i < 10;i++){
+        if(i%2 > 0){
+            obj.push_back(i);
+        }
+        else{
+            obj.push_back(0);
+        }
+        cout << obj[i] << ",";
+    }
+}
+```
+#### 1.3.3 列表推导scala
+```
+for(i <- 1 to 10 if i % 2 > 0) yield i
+
+(1 to 10).map(x => if(x%2>0) x else 0)
+```
+### 1.4 总结
+1. 尽量使用python基础数据类型，不要轻易用python原生语法实现链表、队列这样的类，第一是欠缺优化，第二是这样的原生类在python解释器中运行效率是很差的。比如python的dict是cpython实现的，python的ordereddict是原生实现的，效率相差巨大。因此还有一些collections中的序列数据类型诸如deque之类的就不介绍了，据说namedtuple相对于dict来说更轻量还是很不错的，但我没用过。
+2. 列表推导是很方便的技巧，但是在现代IDE强大的代码补全下似乎没有列表推导也不是很麻烦。
+## 2. 映射（mapping）
+### 2.1 dict
+python的dict在《代码之美》中被称为全能战士。
+#### 2.1.1 字典推导式
+```
+# 字典推导式我从来没用过，《流畅的python》中有这样的写法
+d = [(86,'china'), (81, 'japan')]
+# 流畅的python中的实现
+{code:country for code, country in d}
+# 我的实现
+dict(d)
+# 我经常这样构造dict,所以几乎没用过字典推导
+dict(zip(['a','b','c'], [1,2,3]))
+# 即
+dict(zip(l1,l2))
+```
+#### 2.1.2 实验
+1. 像`k in .keys()`python3中较快，因为返回的是试图类似于集合，查找速度为O(1)，而python2中返回的是list，查找速度为O(n)
+2. 流畅的python中一个优化字典赋值的例子
+```
+# 流畅的python认为较好的写法
+my_dict.setdefault(key, []).append(new_value)
+# 流畅的python认为不好的写法,这种写法需要查询两次，假如key不存在则是三次。
+if key not in my_dict:
+    my_dict[key] = []
+my_dict[key].append(new_value)
+# 我的实验：设第一种为f1函数，第二种为f2函数
+def f1():
+    mydict = dict(zip(range(10000),range(10000)))
+    mydict.setdefault('a',[]).append(10)
+    
+def f2():
+    mydict = dict(zip(range(10000),range(10000)))
+    if 'a' not in mydict:
+        mydict['a']=[]
+    mydict['a'].append(10)
+# python3
+print(timeit.timeit("f1()", setup="from __main__ import f1"))
+print(timeit.timeit("f2()", setup="from __main__ import f2"))
+# python2
+print(timeit.timeit("f1()", setup="from __main__ import f1", number=1000))
+print(timeit.timeit("f2()", setup="from __main__ import f2", number=1000))
+
+```
+#### 2.1.3 实验结果
+实验结果 消耗时间如下，可能和电脑性能有关每次执行耗时波动挺大，虚拟机 4核 3g 
+
+python3
+
+f1: 0.34-0.42s
+
+f2: 0.39-0.52s
+
+python2（执行1000次，100万次大概要1000s，等不起）
+
+f1:1.65s（python3 1000次大概0.0002s）
+
+f2:1.68s
+### 2.2 总结 
+在乍一看书的情况下会认为前者效率远高于后者，因为前者只搜索了一次，后者最坏情况甚至要查找三次，但是在实验中，10000个键值对的字典，赋值1000次的情况下二者没有区别，100万次的情况下也仅仅略微节省5%-10%的时间。其实很多问题都是这样，有很多的细节，尤其是考试或者面试总喜欢问这些问题。其实实践中区别似乎不大。在我看来，不求甚解的读书未尝有什么不好，因为这样增加了勇气，节省了时间，而很多时候我们也不在乎这点时间上的优化。
+
+python3和python2区别很大，原因是python3对字典有一定优化。python3的.keys()返回的是视图，效率等价于集合，python2返回的是list因为key in .keys()效率差别巨大。
+## 3. 集合（set）
+目前我觉得这个没啥好讲的，因为集合相当于是字典的子集。他们都给予hash算法，因此hash可以研究下。《流畅的python》提到python3.2以下关于字典有一个可能会导致DOS的漏洞，文章链接在此
+[dos by hash](http://ocert.org/advisories/ocert-2011-003.html).
+
+这篇文章的意思是hash比较消耗内存，因为1000个key的情况下为了避免hash碰撞分配的空间是远远大于1000个盒子的，因此当web请求传入一个很大的json参数可能不需要太多请求就会把服务器打满，造成dos的效果。总之又是一个原理简单，操作暴躁的大力出奇迹式的漏洞。但是由于nginx等都可以限制像web服务器传送数据的长度，所以还好吧。
+## 4. 字符串
+略
